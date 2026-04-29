@@ -1,0 +1,163 @@
+{% load static %}<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Compiler Studio — Spring 2026</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.css" />
+<link rel="stylesheet" href="{% static 'css/app.css' %}" />
+</head>
+<body class="min-h-screen text-slate-100">
+
+<div class="app-bg"></div>
+
+<header class="px-6 lg:px-10 py-5 flex items-center justify-between border-b border-white/5 backdrop-blur-md bg-slate-950/40 sticky top-0 z-30">
+  <div class="flex items-center gap-3">
+    <div class="logo-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><path d="M10 12l2 2 4-4"/>
+      </svg>
+    </div>
+    <div>
+      <h1 class="text-lg lg:text-xl font-bold tracking-tight">Compiler Studio</h1>
+      <p class="text-xs text-slate-400 -mt-0.5">Lexical · Semantic · Memory</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <span id="status-pill" class="status-pill">Ready</span>
+    <button id="run-btn" class="btn-primary">
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      <span>Run</span>
+      <kbd class="kbd">Ctrl+Enter</kbd>
+    </button>
+    <button id="clear-btn" class="btn-ghost">Clear</button>
+  </div>
+</header>
+
+<main class="px-6 lg:px-10 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+  <section class="glass-card flex flex-col overflow-hidden">
+    <div class="card-header">
+      <div class="flex items-center gap-2">
+        <span class="dot dot-emerald"></span>
+        <h2 class="font-semibold">Source Code</h2>
+      </div>
+      <div class="flex items-center gap-2">
+        <select id="snippet-select" class="select-mini">
+          <option value="">Load sample…</option>
+          <option value="memory">Phase 3: Memory example</option>
+          <option value="lexer">Phase 1: Mixed tokens</option>
+          <option value="if-valid">Phase 2: Valid if</option>
+          <option value="if-invalid">Phase 2: Invalid if</option>
+          <option value="undeclared">Phase 2: Undeclared variable</option>
+          <option value="full">Full program</option>
+        </select>
+      </div>
+    </div>
+    <div class="flex-1 min-h-[420px]">
+      <textarea id="editor"></textarea>
+    </div>
+  </section>
+
+  <section class="glass-card flex flex-col overflow-hidden">
+    <div class="card-header">
+      <div class="flex items-center gap-1 tabs">
+        <button class="tab tab-active" data-tab="tokens">
+          Tokens <span id="tab-count-tokens" class="tab-badge">0</span>
+        </button>
+        <button class="tab" data-tab="errors">
+          Errors <span id="tab-count-errors" class="tab-badge tab-badge-red">0</span>
+        </button>
+        <button class="tab" data-tab="memory">
+          Memory <span id="tab-count-memory" class="tab-badge">0</span>
+        </button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="export-json" class="btn-tiny" title="Export JSON">JSON</button>
+        <button id="export-csv" class="btn-tiny" title="Export CSV">CSV</button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-hidden">
+
+      <div data-panel="tokens" class="panel">
+        <div id="token-legend" class="legend"></div>
+        <div class="table-scroll">
+          <table class="result-table">
+            <thead>
+              <tr><th>#</th><th>Token</th><th>Type</th><th>Line</th><th>Col</th></tr>
+            </thead>
+            <tbody id="token-tbody"></tbody>
+          </table>
+        </div>
+        <div id="tokens-empty" class="empty-hint">
+          <div class="empty-icon">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          Type code on the left to see tokens.
+        </div>
+      </div>
+
+      <div data-panel="errors" class="panel hidden">
+        <div id="errors-list"></div>
+        <div id="errors-empty" class="empty-hint success">
+          <div class="empty-icon">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          No semantic errors — code looks healthy.
+        </div>
+      </div>
+
+      <div data-panel="memory" class="panel hidden">
+        <div id="memory-controls" class="memory-controls hidden">
+          <div class="flex items-center gap-3">
+            <button id="step-prev" class="btn-circle">‹</button>
+            <input id="step-slider" type="range" min="0" max="0" value="0" class="step-slider"/>
+            <button id="step-next" class="btn-circle">›</button>
+          </div>
+          <div id="step-label" class="step-label">Step 0 / 0</div>
+        </div>
+
+        <div class="memory-body">
+          <div class="mem-pane">
+            <h3 class="mem-pane-title">Variables at this step</h3>
+            <div id="mem-vars" class="mem-vars"></div>
+          </div>
+          <div class="mem-pane">
+            <h3 class="mem-pane-title">Execution trace</h3>
+            <ol id="mem-trace" class="mem-trace"></ol>
+          </div>
+        </div>
+
+        <div id="memory-empty" class="empty-hint">
+          <div class="empty-icon">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="14"/><line x1="10" y1="10" x2="10" y2="14"/><line x1="14" y1="10" x2="14" y2="14"/><line x1="18" y1="10" x2="18" y2="14"/></svg>
+          </div>
+          Memory trace appears once the code is error-free.
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<footer class="px-6 lg:px-10 py-4 text-center text-xs text-slate-500 border-t border-white/5">
+  Compiler Design Project · Spring 2026 · MSA University
+</footer>
+
+{% csrf_token %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.js"></script>
+<script src="{% static 'js/app.js' %}"></script>
+
+</body>
+</html>
