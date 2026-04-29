@@ -43,6 +43,7 @@ def analyze(tokens: list[Token]) -> list[SemanticError]:
     errors: list[SemanticError] = []
     declared: dict[str, str] = {}  # var_name -> data_type
     s = _Stream(tokens)
+    brace_depth = 0  # tracks { } outside of if-bodies (e.g. while/for blocks)
 
     while not s.eof():
         tok = s.peek()
@@ -61,6 +62,22 @@ def analyze(tokens: list[Token]) -> list[SemanticError]:
 
         if tok.type in (TokenType.IDENTIFIER_NAME.value, TokenType.VARIABLE.value):
             _check_assignment_or_use(s, declared, errors)
+            continue
+
+        if tok.type == TokenType.SYMBOL.value and tok.value == "{":
+            brace_depth += 1
+            s.advance()
+            continue
+
+        if tok.type == TokenType.SYMBOL.value and tok.value == "}":
+            if brace_depth > 0:
+                brace_depth -= 1
+            else:
+                errors.append(SemanticError(
+                    "Unexpected '}' — no matching opening '{'",
+                    tok.line, tok.col
+                ))
+            s.advance()
             continue
 
         if tok.type == TokenType.UNKNOWN.value:
